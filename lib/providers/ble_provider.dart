@@ -78,9 +78,9 @@ class BleProvider with ChangeNotifier {
     // TODO: verifica se lo status stream è già in ascolto e se lo è non fare niente
     bleStatusStream = flutterReactiveBle.statusStream;
     bleStatusStream?.listen((status) {
+      bleStatus = status;
       if (kDebugMode) {
         print('BleService statusStream: ${bleStatusText(status)}');
-        bleStatus = status;
       }
     });
   }
