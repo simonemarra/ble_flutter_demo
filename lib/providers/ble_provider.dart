@@ -12,7 +12,7 @@ class BleProvider with ChangeNotifier {
       case BleStatus.unsupported:
         return "This device does not support Bluetooth";
       case BleStatus.unauthorized:
-        return "Authorize the FlutterReactiveBle example app to use Bluetooth and location";
+        return "Authorize the app to use Bluetooth and location";
       case BleStatus.poweredOff:
         return "Bluetooth is powered off on your device turn it on";
       case BleStatus.locationServicesDisabled:
@@ -52,6 +52,13 @@ class BleProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  static Stream<BleStatus>? _bleStatusStream;
+  Stream<BleStatus>? get bleStatusStream => _bleStatusStream;
+  set bleStatusStream(Stream<BleStatus>? stream) {
+    _bleStatusStream = stream;
+    notifyListeners();
+  }
+
   static bool _bleScanRunning = false;
   bool get bleScanRunning => _bleScanRunning;
   set bleScanRunning(bool value) {
@@ -69,10 +76,11 @@ class BleProvider with ChangeNotifier {
 
   BleProvider() {
     // TODO: verifica se lo status stream è già in ascolto e se lo è non fare niente
-    flutterReactiveBle.statusStream.listen((status) {
+    bleStatusStream = flutterReactiveBle.statusStream;
+    bleStatusStream?.listen((status) {
       if (kDebugMode) {
         print('BleService statusStream: ${bleStatusText(status)}');
-        _bleStatus = status;
+        bleStatus = status;
       }
     });
   }
@@ -109,15 +117,7 @@ class BleProvider with ChangeNotifier {
           if (scanResultsList.length > (maxResults ?? 10)) {
             scanResultsList.removeAt(0);
           }
-          // scanResultsList.sort((a, b) => a.rssi.compareTo(b.rssi));
           scanResultsList = [...scanResultsList];
-          // if (kDebugMode) {
-          //   print('scanResult: $scanResult');
-          // }
-          // // add the scan result to the list sorting by rssi:
-          // scanResultsList.add(scanResult);
-          // scanResultsList.sort((a, b) => a.rssi.compareTo(b.rssi));
-          // scanResultsList = [...scanResultsList];
         }).onError((error) {
           if (kDebugMode) {
             print('error: $error');
@@ -161,14 +161,51 @@ class BleProvider with ChangeNotifier {
     return conn;
   }
 
+  Stream<ConnectionStateUpdate> connectToAdvertisingDevice(
+    String deviceId,
+    List<Uuid> withServices,
+    Duration prescanDuration, {
+    Map<Uuid, List<Uuid>>? servicesWithCharacteristicsToDiscover,
+    Duration? connectionTimeout,
+  }) {
+    if (kDebugMode) {
+      debugPrint('BleProvider: connectToAdvertisingDevice $deviceId');
+    }
+    final conn = flutterReactiveBle.connectToAdvertisingDevice(
+      id: deviceId,
+      withServices: [],
+      prescanDuration: prescanDuration,
+      servicesWithCharacteristicsToDiscover: servicesWithCharacteristicsToDiscover,
+      connectionTimeout: connectionTimeout ?? const Duration(seconds: 10),
+    );
+    return conn;
+  }
+
   Future<List<int>> readCharacteristics(String deviceId, String characteristicUuid, String serviceUuid) async {
-    final characteristic = QualifiedCharacteristic(serviceId: Uuid.parse(serviceUuid), characteristicId: Uuid.parse(characteristicUuid), deviceId: deviceId);
+    final characteristic = QualifiedCharacteristic(
+      serviceId: Uuid.parse(serviceUuid),
+      characteristicId: Uuid.parse(characteristicUuid),
+      deviceId: deviceId,
+    );
     final response = await flutterReactiveBle.readCharacteristic(characteristic);
     return response;
   }
 
   Future<void> writeCharacteristics(String deviceId, String characteristicUuid, String serviceUuid, List<int> value) async {
-    final characteristic = QualifiedCharacteristic(serviceId: Uuid.parse(serviceUuid), characteristicId: Uuid.parse(characteristicUuid), deviceId: deviceId);
+    final characteristic = QualifiedCharacteristic(
+      serviceId: Uuid.parse(serviceUuid),
+      characteristicId: Uuid.parse(characteristicUuid),
+      deviceId: deviceId,
+    );
     await flutterReactiveBle.writeCharacteristicWithResponse(characteristic, value: value);
+  }
+
+  Stream<List<int>> subscribeToCharacteristic(String deviceId, String characteristicUuid, String serviceUuid) {
+    final characteristic = QualifiedCharacteristic(
+      serviceId: Uuid.parse(serviceUuid),
+      characteristicId: Uuid.parse(characteristicUuid),
+      deviceId: deviceId,
+    );
+    return flutterReactiveBle.subscribeToCharacteristic(characteristic);
   }
 }

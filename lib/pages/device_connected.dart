@@ -20,10 +20,14 @@ class DeviceConnectedInfoPage extends StatefulWidget {
 class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
   Stream<ConnectionStateUpdate> _connectionStateStream = const Stream.empty();
   StreamSubscription<ConnectionStateUpdate>? _connectionStateSubscription;
+  Stream<List<int>>? _notificationStream;
+  StreamSubscription<List<int>>? _notificationSubscription;
   DeviceConnectionState? _connectionState = DeviceConnectionState.disconnected;
   bool shouldCancelConnection = false;
 
   int ledCharValue = 0;
+  bool subscriptionActive = false;
+  String notificationValue = '';
 
   @override
   void initState() {
@@ -71,8 +75,47 @@ class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
     try {
       debugPrint('DeviceConnectedInfoPage > dispose');
       _connectionStateSubscription?.cancel();
+      _notificationSubscription?.cancel();
     } catch (e) {
       debugPrint('DeviceConnectedInfoPage > dispose > error: $e');
+    }
+  }
+
+  Future<void> ledStatusChange(value) async {
+    final BleProvider bleProvider = Provider.of<BleProvider>(context, listen: false);
+    await bleProvider.writeCharacteristics(
+      widget.device.id,
+      '19B10001-E8F2-537E-4F6C-D104768A1214',
+      '19B10000-E8F2-537E-4F6C-D104768A1214',
+      (value == true) ? [1] : [0],
+    );
+    final readRes = await bleProvider.readCharacteristics(
+      widget.device.id,
+      '19B10001-E8F2-537E-4F6C-D104768A1214',
+      '19B10000-E8F2-537E-4F6C-D104768A1214',
+    );
+    debugPrint('DeviceConnectedInfoPage > readRes: $readRes');
+    if (readRes.isNotEmpty == true) {
+      setState(() => ledCharValue = readRes.first);
+    }
+  }
+
+  Future<void> subscribeToCharacteristic() async {
+    final BleProvider bleProvider = Provider.of<BleProvider>(context, listen: false);
+    _notificationStream = bleProvider.subscribeToCharacteristic(
+      widget.device.id,
+      '19B10002-E8F2-537E-4F6C-D104768A1214',
+      '19B10000-E8F2-537E-4F6C-D104768A1214',
+    );
+    if (_notificationStream != null) {
+      _notificationSubscription = _notificationStream!.listen((data) {
+        debugPrint('DeviceConnectedInfoPage > notifications data: ${String.fromCharCodes(data)}');
+        if (data.isNotEmpty == true) {
+          setState(() => notificationValue += String.fromCharCodes(data));
+          // setState(() => ledCharValue = data.first);
+        }
+      });
+      setState(() => subscriptionActive = true);
     }
   }
 
@@ -94,8 +137,10 @@ class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const CircularProgressIndicator(),
+                    const SizedBox(height: 8),
                     const Text('Connecting to device...'),
-                    Text('Status: $_connectionState'),
+                    const SizedBox(height: 8),
+                    Text('Status: ${_connectionState.toString().replaceAll('DeviceConnectionState.', '')}'),
                   ],
                 ),
               )
@@ -123,29 +168,72 @@ class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
                                 Switch.adaptive(
                                   value: (ledCharValue != 0),
                                   activeColor: Colors.indigo.shade400,
-                                  onChanged: (value) async {
-                                    await bleProvider.writeCharacteristics(widget.device.id, '19B10001-E8F2-537E-4F6C-D104768A1214',
-                                        '19B10000-E8F2-537E-4F6C-D104768A1214', (value == true) ? [1] : [0]);
-                                    final readRes = await bleProvider.readCharacteristics(
-                                        widget.device.id, '19B10001-E8F2-537E-4F6C-D104768A1214', '19B10000-E8F2-537E-4F6C-D104768A1214');
-                                    debugPrint('DeviceConnectedInfoPage > readRes: $readRes');
-                                    if (readRes.isNotEmpty == true) {
-                                      setState(() => ledCharValue = readRes.first);
-                                    }
-                                  },
+                                  onChanged: ((value) => ledStatusChange(value)),
                                 ),
                               ],
                             ),
                           ),
                           // TODO: register to notification characteristic...
+                          Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Notification status', style: TextStyle(fontSize: 18)),
+                                const SizedBox(width: 10),
+                                Switch.adaptive(
+                                  value: subscriptionActive,
+                                  activeColor: Colors.indigo.shade400,
+                                  onChanged: ((value) {
+                                    if (value == true && subscriptionActive == false) {
+                                      subscribeToCharacteristic();
+                                    } else if (value == false && subscriptionActive == true) {
+                                      _notificationSubscription?.cancel();
+                                      setState(() => subscriptionActive = false);
+                                    }
+                                  }),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Notification value', style: TextStyle(fontSize: 18)),
+                                // const SizedBox(width: 10),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      notificationValue = '';
+                                    });
+                                  },
+                                  child: const Text('Clear notification value'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                            child: SingleChildScrollView(
+                              child: Text(
+                                notificationValue,
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Disconnect'),
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Disconnect'),
+                      ),
                     ),
                   ],
                 ),

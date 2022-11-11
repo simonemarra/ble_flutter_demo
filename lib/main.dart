@@ -76,6 +76,15 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: FittedBox(
+                  child: Text(
+                    BleProvider.bleStatusText(bleProvider.bleStatus),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(12),

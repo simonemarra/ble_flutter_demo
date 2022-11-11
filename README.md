@@ -13,7 +13,6 @@ Then, open the project in Android Studio and run it.
 ## Arduino sketch
 
 ```c++
-
 #include <ArduinoBLE.h>
 
 BLEService ledService("19B10000-E8F2-537E-4F6C-D104768A1214"); // create service
@@ -67,6 +66,14 @@ void setup() {
 void loop() {
   // poll for Bluetooth® Low Energy events
   BLE.poll();
+
+  if(Serial.available()) {
+    int data = Serial.read();
+    Serial.print("Writing ");
+    Serial.print(data);
+    Serial.println(" to notify Char");
+    notifyCharacteristic.setValue(data);
+  }
 }
 
 void blePeripheralConnectHandler(BLEDevice central) {
@@ -89,11 +96,11 @@ void switchCharacteristicWritten(BLEDevice central, BLECharacteristic characteri
     Serial.println("LED on");
     digitalWrite(ledPin, HIGH);
 
-    notifyCharacteristic.setValue(1);
+    // notifyCharacteristic.setValue(1);
   } else {
     Serial.println("LED off");
     digitalWrite(ledPin, LOW);
-    notifyCharacteristic.setValue(0);
+    // notifyCharacteristic.setValue(0);
   }
 }
 ```
