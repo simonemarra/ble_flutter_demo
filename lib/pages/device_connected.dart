@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/container.dart';
 import 'package:flutter/src/widgets/framework.dart';
+import 'package:flutter_ble/models/ble_device_model.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:http/http.dart';
 import 'package:provider/provider.dart';
@@ -18,10 +19,8 @@ class DeviceConnectedInfoPage extends StatefulWidget {
 }
 
 class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
-  Stream<ConnectionStateUpdate> _connectionStateStream = const Stream.empty();
-  StreamSubscription<ConnectionStateUpdate>? _connectionStateSubscription;
-  Stream<List<int>>? _notificationStream;
-  StreamSubscription<List<int>>? _notificationSubscription;
+  BleDeviceModel? bleDev;
+
   DeviceConnectionState? _connectionState = DeviceConnectionState.disconnected;
   bool shouldCancelConnection = false;
 
@@ -32,13 +31,17 @@ class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
   @override
   void initState() {
     super.initState();
+    bleDev = BleDeviceModel(id: widget.device.id, name: widget.device.name);
+    if (bleDev?.notificationsStreams.isEmpty == true) {
+      bleDev?.notificationsStreams.add(null);
+    }
     Future.delayed(Duration.zero, () {
       final bleProvider = Provider.of<BleProvider>(context, listen: false);
-      _connectionStateStream = bleProvider.connectToDevice(widget.device.id);
-      _connectionStateSubscription = _connectionStateStream.listen((connStatus) {
+      bleDev?.connectionStateStream = bleProvider.connectToDevice(widget.device.id);
+      bleDev?.connectionStateSubscription = bleDev?.connectionStateStream.listen((connStatus) {
         if (shouldCancelConnection || mounted == false) {
           debugPrint('DeviceConnectedInfoPage > shouldCancelConnection: $shouldCancelConnection');
-          _connectionStateSubscription?.cancel();
+          bleDev?.connectionStateSubscription?.cancel();
         }
         if (connStatus.deviceId == widget.device.id) {
           switch (connStatus.connectionState) {
@@ -74,8 +77,8 @@ class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
     super.dispose();
     try {
       debugPrint('DeviceConnectedInfoPage > dispose');
-      _connectionStateSubscription?.cancel();
-      _notificationSubscription?.cancel();
+      bleDev?.connectionStateSubscription?.cancel();
+      bleDev?.notificationsStreamsSubscriptions[0]?.cancel();
     } catch (e) {
       debugPrint('DeviceConnectedInfoPage > dispose > error: $e');
     }
@@ -102,13 +105,17 @@ class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
 
   Future<void> subscribeToCharacteristic() async {
     final BleProvider bleProvider = Provider.of<BleProvider>(context, listen: false);
-    _notificationStream = bleProvider.subscribeToCharacteristic(
+    // _notificationStream = bleProvider.subscribeToCharacteristic(
+    bleDev?.notificationsStreams[0] = bleProvider.subscribeToCharacteristic(
       widget.device.id,
       '19B10002-E8F2-537E-4F6C-D104768A1214',
       '19B10000-E8F2-537E-4F6C-D104768A1214',
     );
-    if (_notificationStream != null) {
-      _notificationSubscription = _notificationStream!.listen((data) {
+    if (bleDev?.notificationsStreams[0] != null) {
+      if (bleDev?.notificationsStreamsSubscriptions.isEmpty == true) {
+        bleDev?.notificationsStreamsSubscriptions.add(null);
+      }
+      bleDev?.notificationsStreamsSubscriptions[0] = bleDev?.notificationsStreams[0]?.listen((data) {
         debugPrint('DeviceConnectedInfoPage > notifications data: ${String.fromCharCodes(data)}');
         if (data.isNotEmpty == true) {
           setState(() => notificationValue += String.fromCharCodes(data));
@@ -188,7 +195,7 @@ class _DeviceConnectedInfoPageState extends State<DeviceConnectedInfoPage> {
                                     if (value == true && subscriptionActive == false) {
                                       subscribeToCharacteristic();
                                     } else if (value == false && subscriptionActive == true) {
-                                      _notificationSubscription?.cancel();
+                                      bleDev?.notificationsStreamsSubscriptions[0]?.cancel();
                                       setState(() => subscriptionActive = false);
                                     }
                                   }),

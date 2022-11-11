@@ -79,9 +79,10 @@ class BleProvider with ChangeNotifier {
     bleStatusStream = flutterReactiveBle.statusStream;
     bleStatusStream?.listen((status) {
       bleStatus = status;
-      if (kDebugMode) {
-        print('BleService statusStream: ${bleStatusText(status)}');
-      }
+      debugPrint('BleService statusStream: ${bleStatusText(status)}');
+      // if (kDebugMode) {
+      //   print('BleService statusStream: ${bleStatusText(status)}');
+      // }
     });
   }
 
